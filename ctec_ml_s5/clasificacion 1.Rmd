@@ -15,6 +15,7 @@ Librerias
 library(caTools)
 library(rpart)
 library(randomForest)
+library(dplyr)
 ```
 
 1. Desarolle el Análisis del Problema
@@ -31,13 +32,33 @@ https://archive.ics.uci.edu/ml/machine-learning-databases/mushroom/agaricus-lepi
 1. Cargue el archivo agaricus_lepiota.data.csv en una variable
 
 ```{r}
-# Escriba su código aqui
+# Carga de datos
+agaricus_lepiota <- read.csv("agaricus-lepiota.data", header = FALSE)
+
+# Carga de los nombres de columnas
+nombres_columna <- c("class","cap_shape","cap_surface","cap_color","bruises",
+                     "odor","gill_attachment","gill_spacing","gill_size", 
+                     "gill_color","stalk_shape","stalk_root",
+                     "stalk_surface_above_ring","stalk_surface_below_ring",
+                     "stalk_color_above_ring","stalk_color_below_ring",
+                     "veil_type","veil_color","ring_number","ring_type",
+                     "spore_print_color","population","habitat")
+
+names(agaricus_lepiota) <- nombres_columna
+
+# Etiquetas de los factores
+agaricus_lepiota$class <- factor(agaricus_lepiota$class,
+                                 levels = c("p","e"),
+                                 labels = c("poisonous","edible"))
+
+
 ```
 
 2. Desarolle el Entendimiento de los Datos
 
 ```{r}
-# Escriba su código aqui
+glimpse(agaricus_lepiota)
+
 ```
 
 3. Utilizando barplot cree un gráfico de los atributos del dataset, observe las correlaciones entre atributos
