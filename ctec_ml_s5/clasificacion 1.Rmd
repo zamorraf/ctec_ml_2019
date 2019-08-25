@@ -14,8 +14,12 @@ Librerias
 ```{r}
 library(caTools)
 library(rpart)
+library(rpart.plot)
 library(randomForest)
 library(dplyr)
+library(caTools)
+library(neuralnet)
+library(ROCR)
 ```
 
 1. Desarolle el Análisis del Problema
@@ -36,7 +40,7 @@ https://archive.ics.uci.edu/ml/machine-learning-databases/mushroom/agaricus-lepi
 agaricus_lepiota <- read.csv("agaricus-lepiota.data", header = FALSE)
 
 # Carga de los nombres de columnas
-nombres_columna <- c("class","cap_shape","cap_surface","cap_color","bruises",
+nombres_columna <- c("comestibilidad","cap_shape","cap_surface","cap_color","bruises",
                      "odor","gill_attachment","gill_spacing","gill_size", 
                      "gill_color","stalk_shape","stalk_root",
                      "stalk_surface_above_ring","stalk_surface_below_ring",
@@ -47,9 +51,27 @@ nombres_columna <- c("class","cap_shape","cap_surface","cap_color","bruises",
 names(agaricus_lepiota) <- nombres_columna
 
 # Etiquetas de los factores
-agaricus_lepiota$class <- factor(agaricus_lepiota$class,
+agaricus_lepiota$comestibilidad <- factor(agaricus_lepiota$comestibilidad,
                                  levels = c("p","e"),
-                                 labels = c("poisonous","edible"))
+                                 labels = c("Venenoso","Comestible"))
+
+agaricus_lepiota$cap_shape <- factor(agaricus_lepiota$cap_shape,
+                                     levels = c("b","c","f","k","s","x"),
+                                     labels = c("bell", "conical", "flat", 
+                                                "knobbed", "sunken", "convex"))
+agaricus_lepiota$odor <- factor(agaricus_lepiota$odor,
+                                levels = c("a","c","f","l","m","n","p","s","y"),
+                                labels = c("almond", "creosote", "foul", "anise", 
+                                           "musty", "none", "pungent", "spicy", 
+                                           "fishy"))
+
+agaricus_lepiota$spore_print_color <- factor(agaricus_lepiota$spore_print_color,
+                                            levels = c("k","n","b","h","r","o",
+                                                       "u","w","y"),
+                                            labels = c("black","brown","buff",
+                                                       "chocolate","green",
+                                                       "orange","purple","white",
+                                                       "yellow"))
 
 
 ```
@@ -59,25 +81,79 @@ agaricus_lepiota$class <- factor(agaricus_lepiota$class,
 ```{r}
 glimpse(agaricus_lepiota)
 
+summary(agaricus_lepiota[1:5])
+
 ```
 
 3. Utilizando barplot cree un gráfico de los atributos del dataset, observe las correlaciones entre atributos
 
 ```{r}
-# Escriba su código aqui
+barplot(table(agaricus_lepiota$comestibilidad),
+        main = 'Distribución de Comestibilidad de los Hongos',
+        ylab = 'Observaciones',
+        xlab = '¿Comestibilidad?')
+
+barplot(table(agaricus_lepiota$comestibilidad ,agaricus_lepiota$cap_shape), 
+        col = c("green","red"), 
+        main = "Distribucion de cap_shape",
+        xlab = "cap_shape", ylab = "Cantidad",
+        beside = TRUE)
+legend(x = "topleft",c("Comestible","Venenoso"), fill = c("green","red"))
+
 ```
 
 
 4. Realice al menos 3 modelos vistos en clase
+* División de los datos de prueba y entrenamiento
 ```{r}
-# Escriba su código aqui
+set.seed(201908)
+split <- sample.split(agaricus_lepiota$comestibilidad, SplitRatio = 0.8)
+entrena <- subset(agaricus_lepiota, split == TRUE)
+prueba <- subset(agaricus_lepiota, split == FALSE)
+
 ```
+
+* Modelo utilizando Random Forest
+```{r}
+#Random Forest
+modelo_bosque <- randomForest(comestibilidad ~ ., data = entrena )
+modelo_bosque
+summary(modelo_bosque)
+plot(modelo_bosque)
+```
+
+* Modelo utilizando Arboles de decision
+```{r}
+modelo_arbol <- rpart(comestibilidad ~ .,data = entrena, method =  'class')
+modelo_arbol
+rpart.plot(modelo_arbol, shadow.col = "gray", extra = 104,
+           main = "Clasificación de Hongos por Comestibilidad")
+```
+
 
 5. Evaluación del modelo
+
+**Evaluación del modelo Random Forest** 
 ```{r}
-# Escriba su código aqui
+#Random Forest
+predic_bosque <- predict(modelo_bosque, newdata = prueba, type = 'class')
+
+table(predic_bosque, prueba$comestibilidad)
+
+caret::confusionMatrix(data = predic_bosque, reference = prueba$comestibilidad,
+                       positive = "Comestible" )
 
 ```
+
+**Evaluación del modelo Arbol de decisión**
+```{r}
+predic_arbol <- predict(modelo_arbol, newdata = prueba, type = 'class')
+table(predic_arbol ,prueba$comestibilidad )
+
+caret::confusionMatrix(data = predic_arbol, reference = prueba$comestibilidad,
+                       positive = "Comestible" )
+```
+
 
 
 8. Desarolle al menos 3 conclusiones sobre las clasificaciones de los modelos
