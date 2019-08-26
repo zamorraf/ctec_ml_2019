@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 # Metodos supervisados
 
 Librerias
-```{r}
+```{r include=FALSE}
 library(caTools)
 library(rpart)
 library(rpart.plot)
@@ -20,6 +20,7 @@ library(dplyr)
 library(caTools)
 library(neuralnet)
 library(ROCR)
+library(e1071)
 ```
 
 1. Desarolle el Análisis del Problema
@@ -30,15 +31,21 @@ library(ROCR)
 # Este conjunto de datos incluye descripciones de muestras hipotéticas correspondientes a 23 especies de # hongos branquiales en el hongo de la familia Agaricus y Lepiota extraídas de la Guía de campo de la # # Sociedad Audubon de hongos de América del Norte (1981). Cada especie se identifica como definitivamente # comestible, definitivamente venenosa o de comestibilidad desconocida y no se recomienda. Esta última # # clase se combinó con la venenosa. La Guía establece claramente que no existe una regla simple para # # # determinar la comestibilidad de un hongo; ninguna regla como "folletos tres, que así sea" para el # roble venenoso y la hiedra.
 
 ```
+Conjunto de datos que incluye informacion de hongos de la familia Agaricus y Lepiota en las cuales se identifica claramente si es comestible o venenosa. Lo que se trata de hacer, es demostrar como clasificar hongos en venenosos o comestibles y su vez identificar las principales características de una hongo comestible, utilizando 3 métodos de aprendizaje de máquina supervisados.
+
 Fuente del dataset:
 https://archive.ics.uci.edu/ml/machine-learning-databases/mushroom/agaricus-lepiota.data
 
 1. Cargue el archivo agaricus_lepiota.data.csv en una variable
 
+**Carga del archivo de datos**
 ```{r}
 # Carga de datos
 agaricus_lepiota <- read.csv("agaricus-lepiota.data", header = FALSE)
+```
 
+**Se asignan los nombres de las columnas**
+```{r}
 # Carga de los nombres de columnas
 nombres_columna <- c("comestibilidad","cap_shape","cap_surface","cap_color","bruises",
                      "odor","gill_attachment","gill_spacing","gill_size", 
@@ -49,85 +56,234 @@ nombres_columna <- c("comestibilidad","cap_shape","cap_surface","cap_color","bru
                      "spore_print_color","population","habitat")
 
 names(agaricus_lepiota) <- nombres_columna
-
-# Etiquetas de los factores
-agaricus_lepiota$comestibilidad <- factor(agaricus_lepiota$comestibilidad,
-                                 levels = c("p","e"),
-                                 labels = c("Venenoso","Comestible"))
-
-agaricus_lepiota$cap_shape <- factor(agaricus_lepiota$cap_shape,
-                                     levels = c("b","c","f","k","s","x"),
-                                     labels = c("bell", "conical", "flat", 
-                                                "knobbed", "sunken", "convex"))
-agaricus_lepiota$odor <- factor(agaricus_lepiota$odor,
-                                levels = c("a","c","f","l","m","n","p","s","y"),
-                                labels = c("almond", "creosote", "foul", "anise", 
-                                           "musty", "none", "pungent", "spicy", 
-                                           "fishy"))
-
-agaricus_lepiota$spore_print_color <- factor(agaricus_lepiota$spore_print_color,
-                                            levels = c("k","n","b","h","r","o",
-                                                       "u","w","y"),
-                                            labels = c("black","brown","buff",
-                                                       "chocolate","green",
-                                                       "orange","purple","white",
-                                                       "yellow"))
-
-
 ```
+
+**Asignación de etiquietas a las variables**
+```{r}
+# Etiquetas de los factores
+agaricus_lepiota$comestibilidad <- 
+        factor(agaricus_lepiota$comestibilidad,
+               levels = c("p","e"),
+               labels = c("Venenoso","Comestible"))
+
+agaricus_lepiota$cap_shape <- 
+        factor(agaricus_lepiota$cap_shape,
+               levels = c("b","c","f","k","s","x"),
+               labels = c("bell","conical","flat","knobbed","sunken","convex"))
+
+agaricus_lepiota$cap_surface <- 
+        factor(agaricus_lepiota$cap_surface,
+               levels = c("f","g","y","s"),
+               labels = c("fibrous", "grooves", "scaly","smooth"))
+
+agaricus_lepiota$cap_color <- 
+        factor(agaricus_lepiota$cap_color,
+               levels = c("n","b","c","g","r","p","u","e","w","y"),
+               labels = c("brown", "buff", "cinnamon","gray","green","pink",
+                          "purple","red","white", "yellow"))
+
+agaricus_lepiota$bruises <- 
+        factor(agaricus_lepiota$bruises,
+               levels = c("t","f"),
+               labels = c("bruises", "no"))
+
+agaricus_lepiota$odor <- 
+        factor(agaricus_lepiota$odor,
+               levels = c("a","c","f","l","m","n","p","s","y"),
+               labels = c("almond", "creosote", "foul", "anise","musty", "none",
+                          "pungent","spicy","fishy"))
+
+agaricus_lepiota$gill_attachment <- 
+        factor(agaricus_lepiota$gill_attachment,
+               levels = c("a","d","f","n"),
+               labels = c("attached", "descending","free","notched"))
+
+agaricus_lepiota$gill_spacing <- 
+        factor(agaricus_lepiota$gill_spacing,
+               levels = c("c","w","d"),
+               labels = c("close", "crowded","distant"))
+
+agaricus_lepiota$gill_size <- 
+        factor(agaricus_lepiota$gill_size,
+               levels = c("b","n"),
+               labels = c("broad", "narrow"))
+
+agaricus_lepiota$gill_color <- 
+        factor(agaricus_lepiota$gill_color,
+               levels = c("k","n","b","h","g","r","o","p","u","e","w","y"),
+               labels = c("black", "brown","buff","chocolate","gray","green",
+                          "orange","pink","purple","red","white","yellow"))
+
+agaricus_lepiota$stalk_shape <- 
+        factor(agaricus_lepiota$stalk_shape,
+               levels = c( "e","t"),
+               labels = c("enlarging","tapering"))
+
+agaricus_lepiota$stalk_root <- 
+        factor(agaricus_lepiota$stalk_root,
+               levels = c("b","c","u","e","z","r","?"),
+               labels = c("bulbous","club","cup","equal","rhizomorphs","rooted",
+                          "missing"))
+
+agaricus_lepiota$stalk_surface_above_ring <- 
+        factor(agaricus_lepiota$stalk_surface_above_ring,
+               levels = c("f","y","k","s"),
+               labels = c("fibrous","scaly","silky","smooth"))
+
+agaricus_lepiota$stalk_surface_below_ring <- 
+        factor(agaricus_lepiota$stalk_surface_below_ring,
+               levels = c("f","y","k","s"),
+               labels = c("fibrous","scaly","silky","smooth"))
+
+agaricus_lepiota$stalk_color_above_ring <- 
+        factor(agaricus_lepiota$stalk_color_above_ring,
+               levels = c("n","b","c","g","o","p","e","w","y"),
+               labels = c("brown","buff","cinnamon","gray","orange","pink","red",
+                          "white","yellow"))
+
+agaricus_lepiota$stalk_color_below_ring <- 
+        factor(agaricus_lepiota$stalk_color_below_ring,
+               levels = c("n","b","c","g","o","p","e","w","y"),
+               labels = c("brown","buff","cinnamon","gray","orange","pink","red",
+                          "white","yellow"))
+
+agaricus_lepiota$veil_type <- 
+        factor(agaricus_lepiota$veil_type,
+               levels = c("p","u"),
+               labels = c("partial","universal"))
+
+agaricus_lepiota$veil_color <- 
+        factor(agaricus_lepiota$veil_color,
+               levels = c("n","o","w","y"),
+               labels = c("brown","orange","white","yellow"))
+
+agaricus_lepiota$ring_number <- 
+        factor(agaricus_lepiota$ring_number,
+               levels = c("n","o","t"),
+               labels = c("none","one","two"))
+
+agaricus_lepiota$ring_type <- 
+        factor(agaricus_lepiota$ring_type,
+               levels = c("c","e","f","l","n","p","s","z"),
+               labels = c("cobwebby","evanescent","flaring","large","none",
+                          "pendant","sheathing","zone"))
+
+agaricus_lepiota$spore_print_color <- 
+        factor(agaricus_lepiota$spore_print_color,
+               levels = c("k","n","b","h","r","o","u","w","y"),
+               labels = c("black","brown","buff","chocolate","green","orange",
+                          "purple","white","yellow"))
+
+agaricus_lepiota$population <- 
+        factor(agaricus_lepiota$population,
+               levels = c("a","c","n","s","v","y"),
+               labels = c("abundant","clustered","numerous","scattered",
+                          "several","solitary"))
+
+agaricus_lepiota$habitat <- 
+        factor(agaricus_lepiota$habitat,
+               levels = c("g","l","m","p","u","w","d"),
+               labels = c("grasses","leaves","meadows","paths","urban","waste",
+                          "woods"))
+```
+
 
 2. Desarolle el Entendimiento de los Datos
 
+**Se identifican las variables y sus tipos de datos**
 ```{r}
 glimpse(agaricus_lepiota)
-
-summary(agaricus_lepiota[1:5])
-
 ```
+* Todas las 23 variables son categóricas
+* Se usa la variable "comestibilidad" como variable objetivo, posee dos valores: Comestible, Venenoso
+
+**Se hace un resumen de cada variable**
+```{r}
+summary(agaricus_lepiota)
+```
+* Se identifica que la variable "veil_type" todo los valores son iguales("partial")
+
+**Se identifica la cantidad de clases de cada uno de las variables**
+```{r}
+# Calcula el número de clases para cada variable
+cbind.data.frame(Variables=names(agaricus_lepiota), 
+                 Numero_Clases=sapply(agaricus_lepiota,
+                                      function(x){as.numeric(length(levels(x)))}))
+```
+
 
 3. Utilizando barplot cree un gráfico de los atributos del dataset, observe las correlaciones entre atributos
 
+**Se analizan los valores de la variable objetivo "comestibilidad"**
 ```{r}
 barplot(table(agaricus_lepiota$comestibilidad),
         main = 'Distribución de Comestibilidad de los Hongos',
         ylab = 'Observaciones',
         xlab = '¿Comestibilidad?')
+```
 
-barplot(table(agaricus_lepiota$comestibilidad ,agaricus_lepiota$cap_shape), 
+
+**Se analizan las variables más representativas**
+```{r}
+# Variable ODOR
+barplot(table(agaricus_lepiota$comestibilidad ,agaricus_lepiota$odor), 
         col = c("green","red"), 
-        main = "Distribucion de cap_shape",
-        xlab = "cap_shape", ylab = "Cantidad",
+        main = "Distribución de variable odor" ,
+        xlab = "odor", ylab = "Cantidad",
         beside = TRUE)
 legend(x = "topleft",c("Comestible","Venenoso"), fill = c("green","red"))
 
+# Variable SPORE_PRINT_COLOR
+barplot(table(agaricus_lepiota$comestibilidad ,agaricus_lepiota$spore_print_color), 
+        col = c("green","red"), 
+        main = "Distribución de variable spore_print_color" ,
+        xlab = "spore_print_color", ylab = "Cantidad",
+        beside = TRUE)
+legend(x = "top",c("Comestible","Venenoso"), fill = c("green","red"))
 ```
 
 
 4. Realice al menos 3 modelos vistos en clase
-* División de los datos de prueba y entrenamiento
+
+**División de los datos de prueba y entrenamiento**
 ```{r}
 set.seed(201908)
 split <- sample.split(agaricus_lepiota$comestibilidad, SplitRatio = 0.8)
 entrena <- subset(agaricus_lepiota, split == TRUE)
 prueba <- subset(agaricus_lepiota, split == FALSE)
-
 ```
 
-* Modelo utilizando Random Forest
+**Cantidad de observaciones en el conjunto de prueba (FALSE) y el de entrenamiento (TRUE)**
+```{r}
+table(agaricus_lepiota$comestibilidad, split)
+```
+
+
+**Creación de modelo utilizando método Random Forest**
 ```{r}
 #Random Forest
 modelo_bosque <- randomForest(comestibilidad ~ ., data = entrena )
 modelo_bosque
-summary(modelo_bosque)
 plot(modelo_bosque)
 ```
 
-* Modelo utilizando Arboles de decision
+* El método Random Forest predice  con 100% de precisión (0% de error).
+
+**Creación de modelo utilizando método Arboles de decisión**
 ```{r}
 modelo_arbol <- rpart(comestibilidad ~ .,data = entrena, method =  'class')
 modelo_arbol
-rpart.plot(modelo_arbol, shadow.col = "gray", extra = 104,
+rpart.plot(modelo_arbol, shadow.col = "gray", extra = 104, 
            main = "Clasificación de Hongos por Comestibilidad")
+```
+
+**Creación de modelo utilizando método SVM**
+
+No se utiliza el método de regresión logística, porque se requiere trasnformar las variables categóricas a valores binarios para cada label, lo que no es común para este tipo de variables, requiere de mucho esfuerzo para esta transformación
+```{r}
+modelo_svm <- svm(comestibilidad ~ ., cost = 1000, gamma = 0.01,
+                  data = entrena[,-which(colnames(entrena) == "veil_type")] )
+modelo_svm
 ```
 
 
@@ -154,9 +310,20 @@ caret::confusionMatrix(data = predic_arbol, reference = prueba$comestibilidad,
                        positive = "Comestible" )
 ```
 
+**Evaluación de modelo SVM**
+```{r}
+predic_svm <- predict(modelo_svm, newdata = prueba, type = 'class')
+table(predic_svm, prueba$comestibilidad)
+
+caret::confusionMatrix(data = predic_svm, reference = prueba$comestibilidad,
+                       positive = "Comestible" )
+
+```
 
 
 8. Desarolle al menos 3 conclusiones sobre las clasificaciones de los modelos
 
 
+* Para los modelos creados con los métodos de Bosque Aleatorio y SVM, la precisión es exacta, alcanza el 100%
+* Para el modelo creado con el método de arboles de decisión, la precisión es de 99.57%, es casi exacta pero a diferencia de los métodos anteriores no alcanza el 100%.
 
