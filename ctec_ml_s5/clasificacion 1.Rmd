@@ -268,6 +268,7 @@ plot(modelo_bosque)
 ```
 
 * El método Random Forest predice  con 100% de precisión (0% de error).
+* El modelo muestra que de un total de 6499 observaciones de entrenamiento 3133 son venenosas y 3366 son comestibles
 
 **Creación de modelo utilizando método Arboles de decisión**
 ```{r}
@@ -276,6 +277,11 @@ modelo_arbol
 rpart.plot(modelo_arbol, shadow.col = "gray", extra = 104, 
            main = "Clasificación de Hongos por Comestibilidad")
 ```
+
+* De una cantidad de 6499 observaciones de entrenamiento, para los hongos el 52% con comestibles y el 48% son venenosos. Representado en cantidades 3407 comestibles y  3092 venenosos.
+* Sin los hongos tienen un odor = creosote, foul, musty, pungent, spicy o fishy son venenosos, en caso contrario requieren que el spore_print_color sea green para que sean venenosos.
+* Sin los hongos tienen un odor = almond, anise o none y el spore_print_color es diferente green, son comestibles.
+
 
 **Creación de modelo utilizando método SVM**
 
@@ -326,4 +332,11 @@ caret::confusionMatrix(data = predic_svm, reference = prueba$comestibilidad,
 
 * Para los modelos creados con los métodos de Bosque Aleatorio y SVM, la precisión es exacta, alcanza el 100%
 * Para el modelo creado con el método de arboles de decisión, la precisión es de 99.57%, es casi exacta pero a diferencia de los métodos anteriores no alcanza el 100%.
+* El metodo de arboles de decision presenta una salida que es mas facil de comprender que los dos otros metodos, debido a que se muestra en forma grafica mediante un arbol, que es mucho mas facil de leer.
+* Las variables mas importantes para los modelos son: odor y spore_print_color.
+* De acuerdo a los datos de prueba y cada metodo aplicado, las predicciones indican lo siguiente:
+        
+        * Bosque Aleatorio (Random Forest): Comestible (842) y Venenoso (783).
+        * Arbol de decisiones: Comestible (842) y Venenoso (776) con un error de 7 venenosos que fueron predecidos como Comestibles
+        * SVM: Comestible (842) y Venenoso (783).
 
