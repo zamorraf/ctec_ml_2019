@@ -14,6 +14,8 @@ Librerias
 ```{r}
 library(caTools)
 library(rpart)
+library(readr)
+
 #..........Librerias de los modelos
 ```
 
@@ -36,7 +38,20 @@ http://datosabiertos.csv.go.cr/dashboards/19683/accidentes/
 1. Cargue el archivo nombre.csv en una variable
 
 ```{r}
-# Escriba su c?digo aqui
+# Identificar el conjunto de carácteres 
+guess_encoding("temp_5571830814335439232.csv" )
+
+# Cargar el archivo
+accidentes <- read.csv("temp_5571830814335439232.csv", encoding = "UTF-8", 
+                       header = TRUE)
+
+# Se actualizan los nombres de variables
+nombres_columna <- c("a_persona", "rol", "tipo_de_lesion", "edad", 
+                     "edad_quinquenal", "sexo", "anno", "mes", "dia", "provincia",
+                     "canton", "distrito", "dia_1", "mes_1", "edad_quinquenal_1")
+colnames(accidentes) <- nombres_columna
+colnames(accidentes)
+
 ```
 
 2. Desarolle el Entendimiento de los Datos
