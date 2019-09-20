@@ -1,98 +1,50 @@
----
-title: "Clase 7"
-output: html_document
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-# Tarea 7.
-# Validación
-
-Librerias
-```{r include=FALSE}
-library(caTools)
-library(rpart)
-library(readr)
 library(dplyr)
-library(visdat)
 library(ggplot2)
 
 # Para la funcion sample.split
 library(caTools)
-# Para la funcion randomForest
-library(randomForest)
-# Para la funcion confusionMatrix
-library(caret)
+# Para la función svm
+library(e1071)
+
 # Para la funcion rpart y rpart.plot
 library(rpart)
 library(rpart.plot)
-# para la fucnion kknn
-library(kknn)
-# Para la función svm
-library(e1071)
+
+# Para la funcion confusionMatrix
+library(caret)
 
 # Para la función roc
 library(pROC)
 
-# Para función prediction
-library(ROCR)
+# Para la funcion randomForest
+library(randomForest)
 
-```
+# para la fucnion kknn
+library(kknn)
 
-1. Desarolle el An?lisis del Problema
-```{r}
-# Construya el análisis del problema
+#-------------------------------------------------------------------------------
+# 1. Se carga el archivo de datos**
+#-------------------------------------------------------------------------------
 
-
-# Los datos se obtienen mediante el  parte oficial de tr?nsito que realiza la Direcci?n General de Polic?a de Tr?nsito al presentarse un accidente, los cuales ingresan a la base de datos de dos formas (hand held y papel). Debido a que parte de la labor principal de la Instituci?n es salvar vidas, y por los recursos limitados que existen, se trabaja solo con accidentes con heridos y/o fallecidos; y no se trabaja con accidentes que presentan solo da?os materiales. Adem?s, posteriormente inicia el proceso de limpieza, correcci?n de inconsistencias, validaci?n de algunas variables,  georeferenciaci?n de los accidentes, entre otros.
-
-
-#Accidente con v?ctima se refiere cuando en el accidente de tr?nsito al menos uno de los participantes resulto: herido leve, grave o fallecido.
-
-#Para m?s informaci?n revisar la metodolog?a del documento Memoria estad?stica de accidentes de tr?nsito con v?ctimas.Periodo 2012-2014.
-
-```
-
-Fuente del dataset:
-http://datosabiertos.csv.go.cr/dashboards/19683/accidentes/
-
-1. Cargue el archivo nombre.csv en una variable
-
-**Se identifica el conjunto de caracteres del archivo**
-```{r}
-guess_encoding("temp_5571830814335439232.csv" )
-```
-**Se carga el archivo de datos**
-```{r}
 accidentes <- read.csv("temp_5571830814335439232.csv", encoding = "UTF-8", 
                        header = TRUE)
-```
 
-**Se asignan los nombres de las variables**
-```{r}
+
+#Se asignan los nombres de las variables**
 nombres_columna <- c("a_persona", "rol", "tipo_de_lesion", "edad", 
                      "edad_quinquenal", "sexo", "anno", "mes", "dia", "provincia",
                      "canton", "distrito", "dia_1", "mes_1", "edad_quinquenal_1")
 colnames(accidentes) <- nombres_columna
 colnames(accidentes)
-```
 
-**Se eliminan las variables que no se requieren**
-```{r}
+
+#Se eliminan las variables que no se requieren**
+# Eliminar las variables que no se necesitan
 accidentes <- accidentes %>% 
   select(-a_persona, -dia_1, -mes_1, -edad_quinquenal_1)
-```
-Se eliminan las siguientes variables:
-  a_persona: posee un valor único.
-  dia_1: corresponde a la variable día.
-  mes_1: corresponde a la variable mes.
-  edad_quincenal_1: corresponde a la variables edad_quincenal
 
 
-**Se asignan las etiquetas a las variables de tipo factor**
-```{r}
+#Se asignan las etiquetas a las variables de tipo factor**
 accidentes$mes <- 
   factor(accidentes$mes, levels = c("Enero","Febrero","Marzo","Abril","Mayo",
                                     "Junio","Julio","Agosto","Setiembre",
@@ -106,10 +58,8 @@ accidentes$provincia <-
   factor(accidentes$provincia, levels = c("San José","Alajuela","Cartago",
                                           "Heredia","Guanacaste","Puntarenas",
                                           "Limón"))
-```
 
-**Se identifica la variable objetivo**
-```{r}
+#Se identifica la variable objetivo**
 # Se revisa la variable tipo_de_lesion para identificar las clases que la componen 
 table(accidentes$tipo_de_lesion)
 
@@ -124,10 +74,9 @@ accidentes$clase_accidente <-
 
 # Se valida la cantidad de observaciones
 table(accidentes$clase_accidente)
-```
 
-**Imputacion de datos**
-```{r}
+
+#Imputacion de datos
 # Se imputa el valor desconocido de la variable edad por el promedio
 accidentes$edad.mean <- accidentes$edad
 accidentes$edad.mean[accidentes$edad.mean == "Desconocido"] <- NA
@@ -135,6 +84,14 @@ accidentes$edad.mean[is.na(accidentes$edad.mean)] <-
   round(mean(as.numeric(accidentes$edad.mean), na.rm = TRUE),digits = 0)
 accidentes$edad.mean <- as.integer(as.character(accidentes$edad.mean))
 
+
+# Rangos de edad de la OMS
+# in utero y nacimiento, primera infancia (0-5 años)
+# infancia (6 - 11 años), 
+# adolescencia (12-18 años), 
+# juventud (18 - 26 años), 
+# adultez (27 - 59 años) 
+# vejez (60 años y más)
 accidentes$edad.oms <- as.character(accidentes$edad.mean)
 accidentes$edad.oms[accidentes$edad.mean <= 5] <- "Primera Infancia"
 accidentes$edad.oms[accidentes$edad.mean > 5 & accidentes$edad.mean <= 11] <- "Infancia"
@@ -147,78 +104,90 @@ accidentes$edad.oms <-
   factor(accidentes$edad.oms, levels = c("Primera Infancia","Infancia",
                                          "Adolescencia","Juventud","Adultez",
                                          "Vejez"))
-```
 
-
-2. Desarolle el Entendimiento de los Datos
-
-**Se identifican las variables y sus tipos de datos**
-```{r}
+#-------------------------------------------------------------------------------
+#2. Desarolle el Entendimiento de los Datos
+#-------------------------------------------------------------------------------
+#**Se identifican las variables y sus tipos de datos**
 glimpse(accidentes)
-```
 
-**Se realiza un resumen de cada variable**
-```{r}
+#**Se realiza un resumen de cada variable**
 summary(accidentes)
-```
 
-**Se identifica la cantidad de clases de cada una de las variables**
-```{r}
+
+#**Se identifica la cantidad de clases de cada una de las variables**
 # Calcula el número de clases para cada variable
 as_tibble(arrange(cbind.data.frame(Variables=names(accidentes), 
-                 Numero_Clases=sapply(accidentes,
-                                      function(x){as.numeric(length(levels(x)))})),-Numero_Clases))
-```
+                                   Numero_Clases=sapply(accidentes,
+                                                        function(x){as.numeric(length(levels(x)))})),-Numero_Clases))
 
+#-------------------------------------------------------------------------------
+# 3. Utilizando barplot cree un gr?fico de los atributos del dataset, observe las 
+# correlaciones entre atributos
+#-------------------------------------------------------------------------------
 
-3. Utilizando barplot cree un gr?fico de los atributos del dataset, observe las correlaciones entre atributos
+#**Se analizan las variables más representativas**
+#barplot(table(accidentes$clase_accidente), main = "Distribución de Accidentes", 
+#        ylab = "Observaciones", xlab = "Hay Víctimas?")
 
-```{r}
-# Escriba su c?digo aqui
-```
+# Accidentes por rol
+ggplot(as.data.frame(table(accidentes$clase_accidente, accidentes$edad.oms)),
+       aes(x = Var2 , y = Freq, fill = Var1 )) +
+  geom_bar(stat = "identity")  +
+  #coord_flip() + 
+  xlab("Rol") + ylab("Cantidad") + 
+  ggtitle("Distribución de Clases de Accidente por Edad")  + theme_light() + 
+  theme(plot.title = element_text(face = "bold", hjust = 0.5)#,
+        #axis.text.x = element_text(angle=45, vjust=1, hjust=1)
+        ) +
+  guides(fill=guide_legend(title="Clase Accidente"))
 
+# Anàlisis de la variable provincia
+ggplot(accidentes,
+       aes(x = edad.oms, fill= clase_accidente  ))+
+  geom_bar(position = position_dodge2())+  
+  xlab("Provincia") + ylab("Cantidad") + 
+  ggtitle("Distribución de Accidentes por Provincia")  + theme_light() + 
+  theme(plot.title = element_text(face = "bold", hjust = 0.5)) +
+  guides(fill=guide_legend(title="Clase Accidente"))
 
-4. Realice al menos 5 modelos de los observados en clase
-
-**División de los datos de prueba y entrenamiento**
-```{r}
+#-------------------------------------------------------------------------------
+#4. Realice al menos 5 modelos de los observados en clase
+#-------------------------------------------------------------------------------
+#**División de los datos de prueba y entrenamiento**
 set.seed(201909)
+
 split <- sample.split(accidentes$clase_accidente, SplitRatio = 0.8 )
 entrena <- subset(accidentes, split == TRUE)
 prueba <- subset(accidentes, split == FALSE)
 
-```
-
-**Cantidad de observaciones en el conjunto de prueba (FALSE) y el de entrenamiento (TRUE)**
-```{r}
+#**Cantidad de observaciones en el conjunto de prueba (FALSE) y el de entrenamiento (TRUE)**
 table(accidentes$clase_accidente, split)
-```
 
-**Creación de modelo utilizando método Random Forest**
-```{r}
+
+#**Creación de modelo utilizando método Random Forest**
+#-------------------------------------------------------------------------------
 #Random Forest
 modelo_bosque <- randomForest(clase_accidente ~ rol + provincia + anno + sexo + 
-                              edad_quinquenal, data = entrena)
+                                edad_quinquenal, data = entrena)
 modelo_bosque
 plot(modelo_bosque)
-```
 
 
-**Creación de modelo utilizando método Arboles de decisión**
-```{r}
+#**Creación de modelo utilizando método Arbol de decision**
+#-------------------------------------------------------------------------------
 # Arbol de decisiones 
-modelo_arbol <- rpart(clase_accidente ~ edad_quinquenal + rol + mes + provincia + 
-                      sexo, data = entrena, method =  'class')
+modelo_arbol <- rpart(clase_accidente ~ .,#edad_quinquenal + rol + mes + provincia + sexo, 
+                      data = entrena, method =  'class')
 modelo_arbol
-```
-```{r fig.width = 10}
+
 rpart.plot(modelo_arbol, shadow.col = "gray", extra = 104, 
            main = "Clasificación de Accidentes por Clase de Accidente")
-```
 
 
-**Creación de modelo utilizando método SVM**
-```{r}
+#**Creación de modelo utilizando método SVM**
+#-------------------------------------------------------------------------------
+
 # Reduccion de datos para SVM
 split <- sample.split(accidentes$clase_accidente, SplitRatio = 0.05 )
 accidentes_svm <- subset(accidentes, split == TRUE)
@@ -235,33 +204,34 @@ modelo_svm <- svm(clase_accidente ~ ., data = data_svm,
 modelo_svm
 
 plot(modelo_svm, data_svm, anno ~ edad.mean )
-```
 
 
-**Creación del modelo utilizando método de KNN (vecinos más cercanos )**
-```{r}
+
+
+
+#**Creación del modelo utilizando método de KNN (vecinos más cercanos )**
+#-------------------------------------------------------------------------------
 modelo_knn <- kknn(clase_accidente ~ rol + provincia , train = entrena, 
                    test = prueba, k = 4)
-```
 
 
-**Creación del modelo de red neuronal**
-```{r}
+#**Creación del modelo de red neuronal**
+#-------------------------------------------------------------------------------
 modelo_neuronal <- 
   nnet::nnet(clase_accidente ~ rol + sexo + provincia , data = entrena,
              size = 2, maxit = 10000, decay = 0.001, rang = 0.05, 
              na.action = na.omit, skip = TRUE)
-```
 
 
-5. Evaluación de los modelos
+#-------------------------------------------------------------------------------
+#5. Evaluaci?n de los modelos
+#-------------------------------------------------------------------------------
 
-**Evaluación del modelo Random Forest** 
-```{r}
+#**Evaluación del modelo Random Forest** 
+#-------------------------------------------------------------------------------
 #Random Forest
 predic_bosque <- predict(modelo_bosque, newdata = prueba, type = 'class')
 
-# Matriz de confusión
 confusionMatrix(data = predic_bosque, reference = prueba$clase_accidente,
                 positive = "Víctima" )
 
@@ -276,10 +246,48 @@ plot(performance(predic_bosqueROC, "tpr", "fpr"),
      text.adj = c(-0.2,1.7),
      main = 'Curva ROC del modelo con el método Árboles Aleatorios')
 
-```
 
-**Evaluación del modelo Arbol de decisión**
-```{r}
+## Prediccion ROC con pROC
+fitted = attributes(predict(modelo_bosque, prueba))
+
+glimpse(as.integer(fitted$names))
+
+pROC_obj <- roc( prueba[,"clase_accidente"],#df$labels,
+                 as.integer(fitted$names),##df$predictions,
+                 smoothed = TRUE,
+                 # arguments for ci
+                 ci=TRUE, ci.alpha=0.9, stratified=FALSE,
+                 # arguments for plot
+                 plot=TRUE, auc.polygon=TRUE, max.auc.polygon=TRUE, grid=TRUE,
+                 print.auc=TRUE, show.thres=TRUE)
+
+
+sens.ci <- ci.se(pROC_obj)
+plot(sens.ci, type="shape", col="lightblue")
+## Warning in plot.ci.se(sens.ci, type = "shape", col = "lightblue"): Low
+## definition shape.
+plot(sens.ci, type="bars")
+
+## Prediccion ROCR
+pred <- prediction(as.integer(fitted$names), prueba[,"clase_accidente"])
+perf <- performance(pred,"tpr","fpr")
+plot(perf,colorize=TRUE)
+
+# Prediction 
+library(precrec)
+precrec_obj2 <- evalmod(scores = as.integer(fitted$names), 
+                        labels = prueba[,"clase_accidente"], mode="basic")
+autoplot(precrec_obj2)
+
+
+library(plotROC)
+rocplot <- ggplot(prueba, aes(m = as.integer(fitted$names), d = prueba[,"clase_accidente"]))+ 
+  geom_roc(n.cuts=20,labels=FALSE)
+rocplot + style_roc(theme = theme_grey) + geom_rocci(fill="pink") 
+
+
+#**Evaluación del modelo Arbol de decisión**
+#-------------------------------------------------------------------------------
 predic_arbol <- predict(modelo_arbol, newdata = prueba, type = "class")
 confusionMatrix(data = predic_arbol, reference = prueba$clase_accidente,
                 positive = "Víctima" )
@@ -289,11 +297,11 @@ prediccionesROC = prediction(c(predic_arbol), c(prueba[,"clase_accidente"]))
 as.numeric(performance(prediccionesROC, "auc")@y.values)
 
 plot(performance(prediccionesROC, "tpr", "fpr"),
-     colorize = T, print.cutoffs.at = seq(0,1,by = 0.1), text.adj = c(-0.2,1.7),
-     main = 'Curva ROC del modelo con el método de Árbol de decisión')
-```
+     colorize = T,
+     print.cutoffs.at = seq(0,1,by = 0.1),
+     text.adj = c(-0.2,1.7),
+     main = 'Curva ROC del modelo')
 
-```{r}
 # Tune de arbol de decisión
 tune_arbol_1 <- tune.rpart(clase_accidente ~ edad_quinquenal + rol + mes + 
                              provincia + sexo, 
@@ -303,19 +311,29 @@ tune_arbol_2 <- tune.rpart(clase_accidente ~ .,
                            data = prueba, minsplit = c(1,5,10,15))
 summary(tune_arbol_1)
 summary(tune_arbol_2)
-```
 
-```{r fig.width = 10}
 # Gráfico de comparación de tunning con variables
 par(mfrow = c(1, 2))
 plot(tune_arbol_1)
 plot(tune_arbol_2)
-```
+
+
+# Otros gráficos
+glimpse(predic_arbol)
+summary(predic_arbol)
+class(predic_arbol[1])
+glimpse(as.data.frame(predic_arbol))
+
+## Prediccion ROC ggplot
+library(plotROC)
+rocplot <- ggplot(prueba, aes(m = predic_arbol, d = prueba[,"clase_accidente"])) + 
+  geom_roc(n.cuts=20,labels=FALSE)
+rocplot + style_roc(theme = theme_grey) + geom_rocci(fill="pink") 
 
 
 
-**Evaluación de modelo SVM**
-```{r}
+#Evaluación de modelo SVM
+#-------------------------------------------------------------------------------
 data_prueba_svm <- prueba_svm[,names(prueba_svm) %in% c("clase_accidente","anno","mes","edad.mean")]
 
 predic_svm <- predict(modelo_svm, newdata = prueba_svm, type = 'class')
@@ -328,6 +346,7 @@ modelo_svm_op <- svm(clase_accidente ~ ., data = data_svm, kernel = "linear",
 fitted = attributes(predict(modelo_svm_op, data_prueba_svm, decision.values = TRUE))$decision.values
 
 
+#-------------------------------------------------------------------------------
 pROC_obj <- roc( data_prueba_svm[,names(data_prueba_svm) %in% c("clase_accidente")],#df$labels,
                  fitted,##df$predictions,
                  smoothed = TRUE,
@@ -344,6 +363,22 @@ plot(sens.ci, type="shape", col="lightblue")
 ## definition shape.
 plot(sens.ci, type="bars")
 
+# Predic
+predic_svmROC <- predict(modelo_svm, newdata = prueba_svm, type = "class")
+confusionMatrix(data = predic_svmROC, reference = prueba_svm$clase_accidente,
+                positive = "Víctima" )
+
+## Prediccion ROC
+prediccionesROC = prediction(c(predic_svmROC), c(prueba_svm[,"clase_accidente"]))
+as.numeric(performance(prediccionesROC, "auc")@y.values)
+
+plot(performance(prediccionesROC, "tpr", "fpr"),
+     colorize = T,
+     print.cutoffs.at = seq(0,1,by = 0.1),
+     text.adj = c(-0.2,1.7),
+     main = 'Curva ROC del modelo')
+
+
 
 # Tune SVM
 tune.out <- tune(svm, clase_accidente ~ ., data = data_svm, kernel = "linear",
@@ -352,11 +387,12 @@ tune.out <- tune(svm, clase_accidente ~ ., data = data_svm, kernel = "linear",
 summary(tune.out)
 bestmod = tune.out$best.model
 summary(bestmod)
-```
 
 
-**Evaluación del modelo KNN (vecinos más cercanos )**
-```{r}
+
+
+#**Evaluación del modelo KNN (vecinos más cercanos )**
+#-------------------------------------------------------------------------------
 fit <- fitted(modelo_knn)
 confusionMatrix(prueba$clase_accidente, fit, positive = "Víctima")
 
@@ -367,9 +403,13 @@ confusionMatrix(data = predic_knn, reference = prueba$clase_accidente,
 
 ## Prediccion ROC
 predic_knnROC = prediction(c(predic_knn), c(prueba[,"clase_accidente"]))
+
 plot(performance(predic_knnROC, "tpr", "fpr"),
-     colorize = T, print.cutoffs.at = seq(0,1,by = 0.1), text.adj = c(-0.2,1.7),
+     colorize = T,
+     print.cutoffs.at = seq(0,1,by = 0.1),
+     text.adj = c(-0.2,1.7),
      main = "Curva ROC del modelo con el método Vecinos más Cercanos(KNN)")
+
 
 # Tune KNN
 #tune_knn <- tune.knn(entrena[,c("rol","provincia")], 
@@ -377,19 +417,24 @@ plot(performance(predic_knnROC, "tpr", "fpr"),
 #                      k = 1:5, tunecontrol = tune.control(sampling = "boot"))
 #summary(tune_knn)
 #plot(tune_knn)
-```
 
-**Evaluación del modelo de la red neuronal**
-```{r}
+
+#**Evaluación del modelo de la red neuronal**
+#-------------------------------------------------------------------------------
 pedict_neuronal <- predict(modelo_neuronal, newdata = prueba ,type = "class")
+table(prueba$clase_accidente, pedict_neuronal, dnn = c("Actual","Predicho"))
+
 confusionMatrix( data = factor(pedict_neuronal), reference = prueba$clase_accidente, 
                  positive = "Víctima")
 
 ## Prediccion ROC
 predic_neuronalROC = prediction(c(predict(modelo_neuronal, newdata = prueba )), 
                                 c(prueba[,"clase_accidente"]))
+
 plot(performance(predic_neuronalROC, "tpr", "fpr"),
-     colorize = T, print.cutoffs.at = seq(0,1,by = 0.1), text.adj = c(-0.2,1.7),
+     colorize = T,
+     print.cutoffs.at = seq(0,1,by = 0.1),
+     text.adj = c(-0.2,1.7),
      main = "Curva ROC del modelo con el método Red Neuronal")
 
 # Tune Red Neuronal
@@ -397,44 +442,4 @@ plot(performance(predic_neuronalROC, "tpr", "fpr"),
 #                       entrena[,"clase_accidente"], 
 #                       k = 1:5, tunecontrol = tune.control(sampling = "boot"))
 
-
-```
-
-
-
-6. Desarolle al menos 5 conclusiones sobre las clasificaciones de los modelos basado en la evaluación
-
-Para el modelo creado con el método de Arbol de Decisión, presenta la precisión es exacta, alcanza el 100%, despues de hacer tuning sobre la fórmula, se utilizan todas las variables del conjunto de datos
-
-Para el modelo creado con el método de Bosques aleatorios, SVM y red neuronal toman una precisión del 84.6% aunque difieren en el porcentaje de error por 0.01%.
-
-El metodo de arboles de decision presenta una salida que es mas fácil de comprender que los dos otros métodos, debido a que se muestra en forma gráfica mediante un árbol, que es mucho más fácil de leer.
-
-Con respecto al metodo SVM, se hizo imposible generar los modelos porque duraban demasiado, por lo que se hizo una reducción de datos. Igualmente el tunning con los cambios de parámetros no mostraba mejoria.
-
-Las variables mas importantes para los modelos son: rol.
-
-De acuerdo a los datos de prueba y cada metodo aplicado, las predicciones indican lo siguiente:
-
-|           MODELO                | PRECISIÓN | ERROR  |SENSIBILIDAD|ESPECIFICIDAD|
-|---------------------------------| ----------| -------|------------|-------------|
-|Random Forest                    | 84.69%    | 15.31% | 81.48%     | 89.35%      |
-|Arbol de decisión                | 84.68%    | 15.32% | 81.44%     | 89.40%      |
-|SVM Máquinas de soporte vectorial| 84.68%    | 15.32% | 81.44%     | 89.40%      |
-|KNN Vecinos más cercanos         | 81.52%    | 18.48% | 83.50%     | 78.65%      |
-|Red Neuronal                     | 84.67%    | 15.33% | 81.41%     | 89.43%      |
-||
-
-De acuerdo a la matriz de confusión se obtiene lo siguiente
-
-|                                 | ACIERTOS  |        | FALLOS     |             |
-|---------------------------------| ----------| -------|------------|-------------|
-|           MODELO                | VÍCTIMAS  | ILESOS | VÍCTIMAS   | ILESOS      |
-|Random Forest                    | 15,305    | 11,524 |    1,373   |  3,478      |
-|Arbol de decisión                | 15,296    | 11,530 |    1,367   |  3,487      |
-|SVM Máquinas de soporte vectorial|    939    |      0 |      645   |      0      |
-|KNN Vecinos más cercanos         | 15,683    | 10,144 |    3,100   |  2,573      |
-|Red Neuronal                     | 15,291    | 11,534 |    1,363   |  3,492      |
-||
-||
 

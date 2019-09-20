@@ -28,8 +28,10 @@ library(caret)
 # Para la funcion rpart y rpart.plot
 library(rpart)
 library(rpart.plot)
-
-
+# para la fucnion kknn
+library(kknn)
+# Para la función svm
+library(e1071)
 ```
 
 1. Desarolle el Análisis del Problema
@@ -45,6 +47,9 @@ library(rpart.plot)
 #Para m?s informaci?n revisar la metodolog?a del documento Memoria estad?stica de accidentes de tr?nsito con v?ctimas.Periodo 2012-2014.
 
 ```
+Conjunto de datos que incluye información de de partes oficiales de tránsito al presentarse un acidente. De la información del parte se puede determinar si en el  accidente hubieron personas ilesas o hubieron víctimas. Lo que se trata de hacer, es demostrar como clasificar los accidentes para determinar si hubieron víctimas, ya que la función de la institución (Policía de Tránsito) es salvar vidas.
+
+
 Fuente del dataset:
 http://datosabiertos.csv.go.cr/dashboards/19683/accidentes/
 
@@ -79,12 +84,12 @@ colnames(accidentes)
 accidentes <- accidentes %>% 
                 select(-a_persona, -dia_1, -mes_1, -edad_quinquenal_1)
 ```
+Se eliminan las siguientes variables:
+  a_persona: posee un valor único.
+  dia_1: corresponde a la variable día.
+  mes_1: corresponde a la variable mes.
+  edad_quincenal_1: corresponde a la variables edad_quincenal
 
-**Se convierten las variables a tipo factor**
-```{r}
-# Convertir a factor el año (variable anno)
-#accidentes$anno <- factor(accidentes$anno)
-```
 
 **Se asignan las etiquetas a las variables de tipo factor**
 ```{r}
@@ -123,6 +128,7 @@ accidentes$clase_accidente <-
 # Se valida la cantidad de observaciones
 table(accidentes$clase_accidente)
 ```
+
 **Imputacion de datos**
 ```{r}
 # Se imputa el valor desconocido de la variable edad por el promedio
@@ -135,13 +141,18 @@ accidentes$edad.mean <-
 ```
 
 
-
 2. Desarolle el Entendimiento de los Datos
 
 **Se identifican las variables y sus tipos de datos**
 ```{r}
 glimpse(accidentes)
 ```
+Existen 11 variables que son factores, 2 enteras.
+
+En la variable edad.mean se almacena la imputación de la variable edad con el valor promedio para las edades con valor "desconocido".
+
+Se utiliza la variable "clase_accidente" como variable objetivo, posee dos valores: Víctima e Ileso.
+
 
 **Se realiza un resumen de cada variable**
 ```{r}
@@ -157,11 +168,10 @@ summary(accidentes)
 **Se identifica la cantidad de clases de cada una de las variables**
 ```{r}
 # Calcula el número de clases para cada variable
-as_tibble(cbind.data.frame(Variables=names(accidentes), 
-                          Numero_Clases=sapply(accidentes,
-                                      function(x){as.numeric(length(levels(x)))})))
+as_tibble(arrange(cbind.data.frame(Variables=names(accidentes), 
+                 Numero_Clases=sapply(accidentes,
+                                      function(x){as.numeric(length(levels(x)))})),-Numero_Clases))
 ```
-
 
 
 3. Utilizando barplot cree un gr?fico de los atributos del dataset, observe las correlaciones entre atributos
@@ -215,8 +225,6 @@ split <- sample.split(accidentes$clase_accidente, SplitRatio = 0.8 )
 entrena <- subset(accidentes, split == TRUE)
 prueba <- subset(accidentes, split == FALSE)
 
-
-
 ```
 
 **Cantidad de observaciones en el conjunto de prueba (FALSE) y el de entrenamiento (TRUE)**
@@ -232,6 +240,8 @@ modelo_bosque <- randomForest(clase_accidente ~ rol + provincia + anno + sexo +
 modelo_bosque
 plot(modelo_bosque)
 ```
+El método Random Forest predice con 84.92% de precisión (15.08% de error).
+El modelo muestra que de un total de 126,719 observaciones de entrenamiento 61,553 son Víctima y 46,054 son Ilesos
 
 **Creación de modelo utilizando método Arboles de decisión**
 ```{r}
@@ -239,8 +249,35 @@ plot(modelo_bosque)
 modelo_arbol <- rpart(clase_accidente ~ edad_quinquenal + rol + mes + provincia + 
                       sexo, data = entrena, method =  'class')
 modelo_arbol
+```
+```{r fig.width = 10}
 rpart.plot(modelo_arbol, shadow.col = "gray", extra = 104, 
            main = "Clasificación de Accidentes por Clase de Accidente")
+```
+De una cantidad de 126,719 observaciones de entrenamiento, para los accidentes el 53% tiene víctimas y el 47% salen ilesos. Representado en cantidades 67030 vícitimas y 59689 ilesos.
+
+
+**Creación de modelo utilizando método SVM**
+```{r}
+modelo_svm <- svm(clase_accidente ~ rol, cost = 1, gamma = 0.01,
+                  data = entrena[,names(entrena) %in% c("clase_accidente","rol")])
+modelo_svm
+```
+
+
+**Creación del modelo utilizando método de KNN (vecinos más cercanos )**
+```{r}
+modelo_knn <- kknn(clase_accidente ~ rol + provincia , train = entrena, 
+                   test = prueba, k = 4)
+```
+
+
+**Creación del modelo de red neuronal**
+```{r}
+modelo_neuronal <- 
+  nnet::nnet(clase_accidente ~ rol + sexo + provincia , data = entrena,
+              size = 2, maxit = 10000, decay = 0.001, rang = 0.05, 
+              na.action = na.omit, skip = TRUE)
 ```
 
 
@@ -268,8 +305,64 @@ confusionMatrix(data = predic_arbol, reference = prueba$clase_accidente,
                 positive = "Víctima" )
 ```
 
+**Evaluación de modelo SVM**
+```{r}
+predic_svm <- predict(modelo_svm, newdata = prueba, type = 'class')
+table(predic_svm, prueba$clase_accidente)
+
+caret::confusionMatrix(data = predic_svm, reference = prueba$clase_accidente,
+                       positive = "Víctima" )
+```
+
+
+**Evaluación del modelo KNN (vecinos más cercanos )**
+```{r}
+fit <- fitted(modelo_knn)
+
+confusionMatrix(prueba$clase_accidente, fit, positive = "Víctima")
+```
+
+**Evaluación del modelo de la red neuronal**
+```{r}
+pedict_neuronal <- predict(modelo_neuronal, newdata = prueba, type = "class")
+
+table(prueba$clase_accidente, pedict_neuronal, dnn = c("Actual","Predicho"))
+
+confusionMatrix( data = factor(pedict_neuronal), reference = prueba$clase_accidente, 
+                positive = "Víctima")
+```
+
 
 6. Desarolle al menos 5 conclusiones sobre las clasificaciones de los modelos
 
+Para el modelo creado con el método de Bosque Aleatorio, presenta la precisión es exacta, alcanza el 84.69%.
 
+Para el modelo creado con el método de arbol de decisión, SVM y red neuronal toman una precisión del 84.68% aunque difieren en el porcentaje de error por 0.0001%.
 
+El metodo de arboles de decision presenta una salida que es mas fácil de comprender que los dos otros métodos, debido a que se muestra en forma gráfica mediante un árbol, que es mucho más fácil de leer.
+
+Las variables mas importantes para los modelos son: rol.
+
+De acuerdo a los datos de prueba y cada metodo aplicado, las predicciones indican lo siguiente:
+
+|           MODELO                | PRECISIÓN | ERROR  |SENSIBILIDAD|ESPECIFICIDAD|
+|---------------------------------| ----------| -------|------------|-------------|
+|Random Forest                    | 84.69%    | 15.31% | 81.49%     | 83.96%      |
+|Arbol de decisión                | 84.68%    | 15.32% | 81.44%     | 89.40%      |
+|SVM Máquinas de soporte vectorial| 84.68%    | 15.32% | 81.44%     | 89.40%      |
+|KNN Vecinos más cercanos         | 81.52%    | 18.48% | 85.07%     | 76.59%      |
+|Red Neuronal                     | 84.68%    | 15.32% | 81.43%     | 89.41%      |
+||
+
+De acuerdo a la matriz de confusión se obtiene lo siguiente
+
+|                                 | ACIERTOS  |        | FALLOS     |             |
+|---------------------------------| ----------| -------|------------|-------------|
+|           MODELO                | VÍCTIMAS  | ILESOS | VÍCTIMAS   | ILESOS      |
+|Random Forest                    | 15,306    | 11,525 |    1,372   |  3,477      |
+|Arbol de decisión                | 15,296    | 11,530 |    1,367   |  3,487      |
+|SVM Máquinas de soporte vectorial| 15,296    | 11,530 |    1,367   |  3,487      |
+|KNN Vecinos más cercanos         | 15,683    | 10,144 |    3,100   |  2,573      |
+|Red Neuronal                     | 15,295    | 11,531 |    1,366   |  3,488      |
+||
+||

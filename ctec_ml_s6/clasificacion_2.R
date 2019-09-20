@@ -128,9 +128,9 @@ table(accidentes$edad)
 dim(accidentes$edad)
 
 # Calcula el número de clases para cada variable
-as_tibble(cbind.data.frame(Variables=names(accidentes), 
+as_tibble(arrange(cbind.data.frame(Variables=names(accidentes), 
                  Numero_Clases=sapply(accidentes,
-                                      function(x){as.numeric(length(levels(x)))})))
+                                      function(x){as.numeric(length(levels(x)))})),-Numero_Clases))
 clases
 head(clases)
 as_tibble(clases)
@@ -250,6 +250,7 @@ modelo_svm
 # Creacion de modelo KNN
 library(caret)
 library(class)
+library(kknn)
 
 glimpse(accidentes)
 glimpse(entrena)
@@ -262,9 +263,19 @@ anyNA(accidentes_knn)
 
 corrplot::corrplot(cor(accidentes[,names(entrena) %in% c("anno.scale","edad.scale")]))
 
-predict.type <- knn(entrena[,names(entrena) %in% c("anno.scale","edad.scale")],
-                    prueba[,names(prueba) %in% c("anno.scale","edad.scale")],
-                    entrena$clase_accidente, k = 100, use.all = FALSE)
+#predict.type <- knn(entrena[,names(entrena) %in% c("anno.scale","edad.scale")],
+#                    prueba[,names(prueba) %in% c("anno.scale","edad.scale")],
+#                    entrena$clase_accidente, k = 10 )
+
+modelo_knn <- kknn(clase_accidente ~ rol + provincia , train = entrena, 
+                   test = prueba, k = 4)
+
+
+# creación del modelo NEURALNET
+modelo_neuronal <- 
+  nnet::nnet(clase_accidente ~ rol + sexo + provincia , data = entrena,
+              size = 2, maxit = 10000, decay = 0.001, rang = 0.05, 
+              na.action = na.omit, skip = TRUE)
 
 
 
@@ -296,8 +307,29 @@ caret::confusionMatrix(data = predic_svm, reference = prueba$clase_accidente,
                        positive = "Víctima" )
 
 
+# Evaluación del modelo KNN
+fit <- fitted(modelo_knn)
+
+table(prueba$clase_accidente,fit)
+
+confusionMatrix(prueba$clase_accidente, fit, positive = "Víctima")
 
 
+#Evaluación del modelo de la red neuronal
+pedict_neuronal <- predict(modelo_neuronal, newdata = prueba, type = "class")
+
+table(prueba$clase_accidente, pedict_neuronal, dnn = c("Actual","Predicho"))
+
+confusionMatrix( data = factor(pedict_neuronal), reference = prueba$clase_accidente, 
+                positive = "Víctima")
+
+
+length(factor(pedict_neuronal)) 
+class(factor(pedict_neuronal))
+class(prueba$clase_accidente) 
+
+summary(pedict_neuronal)
+summary(prueba$clase_accidente)
 
 
 # prueba grafico
